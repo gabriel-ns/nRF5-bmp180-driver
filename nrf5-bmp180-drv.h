@@ -3,7 +3,7 @@
 
 typedef enum pwr_mode
 {
-    BMP180_ULTRA_LOW_PWR,
+    BMP180_ULTRA_LOW_PWR = 0x00,
     BMP180_STANDARD,
     BMP180_HIGH_RES,
     BMP180_ULTRA_HIGH_RES,
