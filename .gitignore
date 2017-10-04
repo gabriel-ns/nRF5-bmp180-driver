@@ -50,5 +50,5 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-example/twi_master_using_app_twi/_build
-example/twi_master_using_app_twi/.settings
+example/bmp180_example/_build
+example/bmp180_example/.settings
