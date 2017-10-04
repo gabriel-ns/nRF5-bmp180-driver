@@ -6,7 +6,7 @@
 #include "nrf_log_ctrl.h"
 #include "nrf5-htu21d-drv.h"
 
-#define BMP180_NULL_PARAM_CHECK(PARAM)  \
+#define HTU21D_NULL_PARAM_CHECK(PARAM)  \
     do{                                 \
         if(PARAM == NULL)               \
         {                               \
@@ -14,7 +14,7 @@
         }                               \
     }while(0)
 
-#define BMP180_RETURN_IF_ERROR(ERR)     \
+#define HTU21D_RETURN_IF_ERROR(ERR)     \
     do{                                 \
         if(ERR != NRF_SUCCESS)          \
         {                               \
@@ -64,7 +64,7 @@ ret_code_t htu21d_drv_set_resolution(htu21d_resolution_t res)
 {
     ret_code_t err_code;
     err_code = htu21d_drv_check_res_integrity(res);
-    RETURN_IF_ERROR(err_code);
+    HTU21D_RETURN_IF_ERROR(err_code);
 
     resolution = res;
     return NRF_SUCCESS;
