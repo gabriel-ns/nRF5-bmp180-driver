@@ -32,7 +32,7 @@ SRC_FILES += \
   $(SDK_ROOT)/components/libraries/bsp/bsp.c \
   $(SDK_ROOT)/components/libraries/bsp/bsp_nfc.c \
   $(PROJ_DIR)/src/main.c \
-  $(PROJ_DIR)./../nrf5-bmp180-drv.c \
+  $(PROJ_DIR)./../Libs/bmp180/nrf5-bmp180-drv.c \
   $(SDK_ROOT)/external/segger_rtt/RTT_Syscalls_GCC.c \
   $(SDK_ROOT)/external/segger_rtt/SEGGER_RTT.c \
   $(SDK_ROOT)/external/segger_rtt/SEGGER_RTT_printf.c \
@@ -54,7 +54,7 @@ INC_FOLDERS += \
   $(SDK_ROOT)/components/libraries/timer \
   $(SDK_ROOT)/components/drivers_nrf/delay \
   $(PROJ_DIR) \
-  $(PROJ_DIR)./../ \
+  $(PROJ_DIR)./../Libs/bmp180 \
   $(SDK_ROOT)/components/drivers_nrf/gpiote \
   $(SDK_ROOT)/external/segger_rtt \
   $(SDK_ROOT)/components/drivers_nrf/nrf_soc_nosd \
