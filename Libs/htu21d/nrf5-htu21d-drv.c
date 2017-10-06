@@ -1,10 +1,15 @@
 #include <string.h>
+#include <stdint.h>
 #include "app_error.h"
 #include "app_util_platform.h"
 #include "nrf_log.h"
 #include "nrf_delay.h"
+#include "nrf_drv_twi.h"
 #include "nrf_log_ctrl.h"
 #include "nrf5-htu21d-drv.h"
+
+#define HTU21D_BYTES_REVERSE_32BIT(x) ((x << 24) | ((x << 8) & 0x00FF0000) | ((x >> 8) & 0x0000FF00) | (x >> 24))
+#define HTU21D_BYTES_REVERSE_16BIT(x) (((x << 8) & 0xFF00) | ((x >> 8) & 0x00FF))
 
 #define HTU21D_NULL_PARAM_CHECK(PARAM)  \
     do{                                 \
@@ -52,7 +57,7 @@ static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * res);
 
 ret_code_t htu21d_drv_begin(nrf_drv_twi_t * p_ext_twi, htu21d_resolution_t res)
 {
-    uint32_t err_code;
+    ret_code_t err_code;
 
     HTU21D_NULL_PARAM_CHECK(p_ext_twi);
     p_twi = p_ext_twi;
@@ -65,22 +70,46 @@ ret_code_t htu21d_drv_begin(nrf_drv_twi_t * p_ext_twi, htu21d_resolution_t res)
 
 ret_code_t htu21d_drv_convert_temp_hold()
 {
-    return NRF_SUCCESS;
+    uint8_t cmd = HTU21D_REG_CONV_TEMP_HOLD;
+
+    return nrf_drv_twi_tx(p_twi,
+                HTU21D_DEVICE_ADDR,
+                &cmd,
+                sizeof(cmd),
+                true);
 }
 
 ret_code_t htu21d_drv_convert_temp_no_hold()
 {
-    return NRF_SUCCESS;
+    uint8_t cmd = HTU21D_REG_CONV_TEMP_NO_HOLD;
+
+    return nrf_drv_twi_tx(p_twi,
+                HTU21D_DEVICE_ADDR,
+                &cmd,
+                sizeof(cmd),
+                false);
 }
 
 ret_code_t htu21d_drv_convert_hum_hold()
 {
-    return NRF_SUCCESS;
+    uint8_t cmd = HTU21D_REG_CONV_HUM_HOLD;
+
+    return nrf_drv_twi_tx(p_twi,
+                HTU21D_DEVICE_ADDR,
+                &cmd,
+                sizeof(cmd),
+                true);
 }
 
 ret_code_t htu21d_drv_convert_hum_no_hold()
 {
-    return NRF_SUCCESS;
+    uint8_t cmd = HTU21D_REG_CONV_TEMP_NO_HOLD;
+
+    return nrf_drv_twi_tx(p_twi,
+                HTU21D_DEVICE_ADDR,
+                &cmd,
+                sizeof(cmd),
+                false);
 }
 
 ret_code_t htu21d_drv_set_resolution(htu21d_resolution_t res)
@@ -100,6 +129,13 @@ htu21d_resolution_t htu21d_drv_get_resolution()
 
 ret_code_t htu21d_drv_soft_reset()
 {
+    uint8_t cmd = HTU21D_REG_SOFT_RESET;
+
+    return nrf_drv_twi_tx(p_twi,
+                HTU21D_DEVICE_ADDR,
+                &cmd,
+                sizeof(cmd),
+                false);
     return NRF_SUCCESS;
 }
 
@@ -141,6 +177,36 @@ uint16_t htu21d_drv_get_hum_conversion_time()
             break;
     }
     return HTU21D_RH_12BIT_CONVERSION_TIME;
+}
+
+ret_code_t htu21d_get_last_conversion(uint16_t * buffer)
+{
+    ret_code_t err_code;
+    err_code = nrf_drv_twi_rx(p_twi,
+                    HTU21D_DEVICE_ADDR,
+                   (uint8_t *) buffer,
+                    sizeof(uint16_t));
+    HTU21D_RETURN_IF_ERROR(err_code);
+
+    *buffer = HTU21D_BYTES_REVERSE_16BIT(*buffer);
+    return NRF_SUCCESS;
+
+}
+
+int16_t htu21d_calculate_temperature(uint16_t buffer)
+{
+    int32_t temp;
+    temp = (17572*buffer)/65535;
+    temp = temp - 4685;
+    return (int16_t) temp;
+}
+
+uint16_t htu21d_calculate_rh(uint16_t buffer)
+{
+    uint32_t rh;
+    rh = (12500*buffer)/65535;
+    rh = rh - 600;
+    return (uint32_t) rh;
 }
 
 static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * res)

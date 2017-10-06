@@ -58,11 +58,10 @@
 #include "app_error.h"
 #include "app_timer.h"
 #include "nrf_drv_twi.h"
-#include "nrf5-bmp180-drv.h"
 #define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
-
+#include "nrf5-htu21d-drv.h"
 #include "nrf_delay.h"
 
 #define MAX_PENDING_TRANSACTIONS    5
@@ -73,10 +72,6 @@
 static nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(0);
 
 static nrf_drv_rtc_t const m_rtc = NRF_DRV_RTC_INSTANCE(0);
-
-static int16_t temp = 0;
-
-static int32_t pres = 0;
 
 #if defined( __GNUC__ ) && (__LINT__ == 0)
     // This is required if one wants to use floating-point values in 'printf'
@@ -111,16 +106,8 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
     {
         // On each RTC tick (their frequency is set in "nrf_drv_config.h")
         // we read data from our sensors.
-        bmp180_drv_convert_temp();
-        nrf_delay_ms(bmp180_drv_get_conv_time());
-        bmp180_drv_get_temp(&temp);
 
-        bmp180_drv_convert_pres();
-        nrf_delay_ms(bmp180_drv_get_conv_time());
-        bmp180_drv_get_pres(&pres);
-
-        NRF_LOG_INFO("Temperature = %d C  |  ", temp);
-        NRF_LOG_INFO("Pressure = %d Pa\r\n", pres);
+        NRF_LOG_INFO("Temperature = \n ");
 
     }
 }
@@ -130,7 +117,7 @@ static void rtc_config(void)
 
     // Initialize RTC instance with default configuration.
     nrf_drv_rtc_config_t config = NRF_DRV_RTC_DEFAULT_CONFIG;
-    config.prescaler = RTC_FREQ_TO_PRESCALER(1); //Set RTC frequency to 32Hz
+    config.prescaler = RTC_FREQ_TO_PRESCALER(64); //Set RTC frequency to 32Hz
     err_code = nrf_drv_rtc_init(&m_rtc, &config, rtc_handler);
     APP_ERROR_CHECK(err_code);
 
@@ -155,6 +142,7 @@ static void lfclk_config(void)
 
 int main(void)
 {
+    volatile ret_code_t err_code;
 
     // Start internal LFCLK XTAL oscillator - it is needed by BSP to handle
     // buttons with the use of APP_TIMER and for "read_all" ticks generation
@@ -167,19 +155,28 @@ int main(void)
     NRF_LOG_FLUSH();
     twi_init();
 
+    htu21d_drv_begin(&m_twi, HTU21D_RES_RH_12_TEMP_14);
+    uint16_t buffer = 0;
+
+
+    err_code = htu21d_drv_convert_temp_no_hold();
+    nrf_delay_ms(htu21d_drv_get_temp_conversion_time());
+    err_code = htu21d_get_last_conversion(&buffer);
+    volatile int16_t temp;
+    temp = htu21d_calculate_temperature(buffer);
+
+    err_code = htu21d_drv_convert_hum_no_hold();
+    nrf_delay_ms(htu21d_drv_get_hum_conversion_time());
+    err_code = htu21d_get_last_conversion(&buffer);
+    volatile int16_t rh;
+    rh = htu21d_calculate_rh(buffer);
+
+    uint16_t test = rh + temp;
+
+    err_code++;
+    test++;
+
     rtc_config();
-
-    bmp180_drv_begin(&m_twi, BMP180_ULTRA_LOW_PWR);
-    bmp180_drv_convert_temp();
-    nrf_delay_ms(bmp180_drv_get_conv_time());
-    bmp180_drv_get_temp(&temp);
-
-    bmp180_drv_convert_pres();
-    nrf_delay_ms(bmp180_drv_get_conv_time());
-    bmp180_drv_get_pres(&pres);
-
-    NRF_LOG_INFO("Temperature = %d C", temp);
-    NRF_LOG_INFO("Pressure = %d Pa", pres);
 
 
     while (true)
