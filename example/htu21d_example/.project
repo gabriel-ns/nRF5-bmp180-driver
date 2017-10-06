@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>nrf5-bmp180-example</name>
+	<name>nrf5-htu21d-example</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -25,7 +25,7 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>bmp180</name>
+			<name>htu21d</name>
 			<type>2</type>
 			<locationURI>virtual:/virtual</locationURI>
 		</link>
@@ -35,14 +35,14 @@
 			<locationURI>virtual:/virtual</locationURI>
 		</link>
 		<link>
-			<name>bmp180/nrf5-bmp180-drv.c</name>
+			<name>htu21d/nrf5-htu21d-drv.c</name>
 			<type>1</type>
-			<locationURI>PARENT-2-PROJECT_LOC/Libs/bmp180/nrf5-bmp180-drv.c</locationURI>
+			<locationURI>PARENT-2-PROJECT_LOC/Libs/htu21d/nrf5-htu21d-drv.c</locationURI>
 		</link>
 		<link>
-			<name>bmp180/nrf5-bmp180-drv.h</name>
+			<name>htu21d/nrf5-htu21d-drv.h</name>
 			<type>1</type>
-			<locationURI>PARENT-2-PROJECT_LOC/Libs/bmp180/nrf5-bmp180-drv.h</locationURI>
+			<locationURI>PARENT-2-PROJECT_LOC/Libs/htu21d/nrf5-htu21d-drv.h</locationURI>
 		</link>
 		<link>
 			<name>nRF5_SDK_12.3.0_d7731ad/components</name>
