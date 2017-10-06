@@ -8,7 +8,7 @@
 #include "nrf_log_ctrl.h"
 
 #define BMP180_BYTES_REVERSE_32BIT(x) ((x << 24) | ((x << 8) & 0x00FF0000) | ((x >> 8) & 0x0000FF00) | (x >> 24))
-#define BMP180_BYTES_REVERSE_16BIT(x) (((x << 8) & 0xFF00) | ((x >> 8) & 0x00FF)))
+#define BMP180_BYTES_REVERSE_16BIT(x) (((x << 8) & 0xFF00) | ((x >> 8) & 0x00FF))
 
 #define BMP180_NULL_PARAM_CHECK(PARAM)  \
     do{                                 \
