@@ -1,4 +1,4 @@
-# nRF5 Sensor Library
+# nRF5 Sensor Libraries
 ## About
 
 This library was developed using the Nordic Semiconductor's NRF5 SDK version 12.3. It should work with all the 12.X versions.
