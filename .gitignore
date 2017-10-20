@@ -54,3 +54,5 @@ example/bmp180_example/_build
 example/bmp180_example/.settings
 example/htu21d_example/_build
 example/htu21d_example/.settings
+example/tsl2561_example/_build
+example/tsl2561_example/.settings
