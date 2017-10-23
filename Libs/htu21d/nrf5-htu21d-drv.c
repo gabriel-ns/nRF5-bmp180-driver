@@ -189,6 +189,96 @@ static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * resolutio
 
 static void htu21d_timeout_cb(void * p_ctx)
 {
+    if(p_ctx == NULL)
+       {
+           return;
+       }
+
+       htu21d_t * htu = (htu21d_t * ) p_ctx;
+
+       ret_code_t err_code;
+       static uint16_t buffer = 0;
+       static uint8_t data_reg_addr = HTU21D_REG_READ_USER;
+       static uint8_t convert_cmd = HTU21D_REG_CONV_HUM_NO_HOLD;
+
+       if(htu->state == HTU21D_STATE_TEMP_CONV)
+       {
+
+           err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &data_reg_addr, sizeof(data_reg_addr), false);
+           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
+
+           /* Store the raw data in the temperature buffer */
+           err_code = nrf_drv_twi_rx(htu->p_twi, HTU21D_DEVICE_ADDR,  (uint8_t *) &buffer,2);
+           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
+
+           buffer = HTU21D_BYTES_REVERSE_16BIT(buffer);
+
+           htu->temperature = htu21d_calculate_temperature(buffer);
+
+           htu->state = HTU21D_STATE_HUM_CONV;
+
+           err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &convert_cmd, sizeof(convert_cmd), false);
+           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
+
+           uint16_t conversion_time = htu21d_drv_get_hum_conversion_time(htu->resolution);
+
+           //TODO app timer prescaler
+           err_code = app_timer_start(htu21d_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) bmp );
+           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_CRIT_ERROR, err_code);
+
+       }
+       else if(htu->state == HTU21D_STATE_HUM_CONV)
+       {
+           err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &data_reg_addr, sizeof(data_reg_addr), false);
+           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
+           err_code = nrf_drv_twi_rx(htu->p_twi, HTU21D_DEVICE_ADDR,  (uint8_t *) &buffer, 2);
+           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
+
+           buffer = HTU21D_BYTES_REVERSE_16BIT(buffer);
+           err_code = htu21d_calculate_rh(buffer);
+           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
+
+           htu->state = HTU21D_STATE_IDLE;
+           htu->last_evt.evt_type = HTU21D_EVT_DATA_READY;
+           htu->last_evt.err_code = NRF_SUCCESS;
+
+           if(p_htu21d_event_cb != NULL)
+           {
+               p_htu21d_event_cb(&htu->last_evt);
+           }
+       }
+}
+
+int16_t htu21d_calculate_temperature(uint16_t buffer)
+{
+    int32_t temp;
+    temp = (17572*buffer)/65535;
+    temp = temp - 4685;
+    return (int16_t) temp;
+}
+
+uint16_t htu21d_calculate_rh(uint16_t buffer)
+{
+    uint32_t rh;
+    rh = (12500*buffer)/65535;
+    rh = rh - 600;
+    return (uint16_t) rh;
+}
+
+static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * res)
+{
+    if(*res == HTU21D_RES_RH_12_TEMP_14 ||
+            *res == HTU21D_RES_RH_8_TEMP_12 ||
+            *res == HTU21D_RES_RH_10_TEMP_13 ||
+            *res == HTU21D_RES_RH_11_TEMP_11)
+    {
+        return NRF_SUCCESS;
+    }
+
+    else
+    {
+        return NRF_ERROR_INVALID_PARAM;
+    }
 
 }
 
@@ -220,37 +310,7 @@ ret_code_t htu21d_drv_convert_hum_no_hold()
 
 
 
-int16_t htu21d_calculate_temperature(uint16_t buffer)
-{
-    int32_t temp;
-    temp = (17572*buffer)/65535;
-    temp = temp - 4685;
-    return (int16_t) temp;
-}
 
-uint16_t htu21d_calculate_rh(uint16_t buffer)
-{
-    uint32_t rh;
-    rh = (12500*buffer)/65535;
-    rh = rh - 600;
-    return (uint32_t) rh;
-}
 
-static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * res)
-{
-    if(*res == HTU21D_RES_RH_12_TEMP_14 ||
-            *res == HTU21D_RES_RH_8_TEMP_12 ||
-            *res == HTU21D_RES_RH_10_TEMP_13 ||
-            *res == HTU21D_RES_RH_11_TEMP_11)
-    {
-        return NRF_SUCCESS;
-    }
-
-    else
-    {
-        return NRF_ERROR_INVALID_PARAM;
-    }
-
-}
 
 #endif
