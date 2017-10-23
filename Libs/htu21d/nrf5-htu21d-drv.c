@@ -53,11 +53,20 @@ typedef enum htu21d_reg_addr
     HTU21D_REG_SOFT_RESET = 0xFE
 } htu21d_reg_addr_t;
 
+static void htu21d_timeout_cb(void * p_ctx);
+
 static htu21d_event_cb_t(* p_htu21d_event_cb)(htu21d_evt_data_t * event_data) = NULL;
 
 ret_code_t htu21d_drv_begin(htu21d_event_cb_t (* htu21d_event_cb)(htu21d_evt_data_t * event_data))
 {
-    return NRF_SUCCESS;
+    if(htu21d_event_cb != NULL)
+    {
+        p_htu21d_event_cb = htu21d_event_cb;
+    }
+
+    ret_code_t err_code;
+    err_code = app_timer_create(&htu21d_internal_timer, APP_TIMER_MODE_SINGLE_SHOT, htu21d_timeout_cb);
+    return err_code;
 }
 
 ret_code_t htu21d_drv_start_sensor(htu21d_t * htu, nrf_drv_twi_t * p_twi, htu21d_resolution_t resolution)
