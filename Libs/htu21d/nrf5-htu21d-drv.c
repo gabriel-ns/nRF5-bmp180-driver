@@ -54,7 +54,8 @@ typedef enum htu21d_reg_addr
 } htu21d_reg_addr_t;
 
 static void htu21d_timeout_cb(void * p_ctx);
-static uint16_t bmp180_drv_get_conv_time(htu21d_resolution_t resolution);
+static uint16_t bmp180_drv_get_temp_conv_time(htu21d_resolution_t resolution);
+static uint16_t bmp180_drv_get_hum_conv_time(htu21d_resolution_t resolution);
 static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * resolution);
 
 static htu21d_event_cb_t(* p_htu21d_event_cb)(htu21d_evt_data_t * event_data) = NULL;
@@ -104,7 +105,7 @@ ret_code_t htu21d_drv_convert_data(htu21d_t * htu)
     err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &cmd, sizeof(cmd), false);
     HTU21D_RETURN_IF_ERROR(err_code);
 
-    uint16_t conversion_time = bmp180_drv_get_conv_time(htu->resolution);
+    uint16_t conversion_time = htu21d_drv_get_temp_conversion_time(htu->resolution);
 
     //TODO app timer prescaler
     err_code = app_timer_start(htu21d_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) htu );
@@ -140,29 +141,58 @@ ret_code_t htu21d_drv_reset_sensor(htu21d_t * htu)
     return err_code;
 }
 
-ret_code_t htu21d_drv_get_sensor_id(htu21d_t * htu, uint8_t * id_buff)
+static uint16_t htu21d_drv_get_temp_conversion_time(htu21d_resolution_t resolution)
 {
-    return NRF_SUCCESS;
+    switch(resolution)
+    {
+        case HTU21D_RES_RH_12_TEMP_14:
+            return HTU21D_TEMP_14BIT_CONVERSION_TIME;
+            break;
+        case HTU21D_RES_RH_8_TEMP_12:
+            return HTU21D_TEMP_12BIT_CONVERSION_TIME;
+            break;
+        case HTU21D_RES_RH_10_TEMP_13:
+            return HTU21D_TEMP_13BIT_CONVERSION_TIME;
+            break;
+        case HTU21D_RES_RH_11_TEMP_11:
+            return HTU21D_TEMP_11BIT_CONVERSION_TIME;
+            break;
+    }
+    return HTU21D_TEMP_14BIT_CONVERSION_TIME;
+}
+
+static uint16_t htu21d_drv_get_hum_conversion_time(htu21d_resolution_t resolution)
+{
+    switch(resolution)
+    {
+        case HTU21D_RES_RH_12_TEMP_14:
+            return HTU21D_RH_12BIT_CONVERSION_TIME;
+            break;
+        case HTU21D_RES_RH_8_TEMP_12:
+            return HTU21D_RH_8BIT_CONVERSION_TIME;
+            break;
+        case HTU21D_RES_RH_10_TEMP_13:
+            return HTU21D_RH_10BIT_CONVERSION_TIME;
+            break;
+        case HTU21D_RES_RH_11_TEMP_11:
+            return HTU21D_RH_11BIT_CONVERSION_TIME;
+            break;
+    }
+    return HTU21D_RH_12BIT_CONVERSION_TIME;
+}
+
+static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * resolution)
+{
+
+}
+
+
+static void htu21d_timeout_cb(void * p_ctx)
+{
+
 }
 
 #if 0
-htu21d_resolution_t resolution = HTU21D_RES_RH_8_TEMP_12;
-nrf_drv_twi_t * p_twi = NULL;
-
-static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * res);
-
-ret_code_t htu21d_drv_begin(nrf_drv_twi_t * p_ext_twi, htu21d_resolution_t res)
-{
-    ret_code_t err_code;
-
-    HTU21D_NULL_PARAM_CHECK(p_ext_twi);
-    p_twi = p_ext_twi;
-
-    err_code = htu21d_drv_set_resolution(res);
-    HTU21D_RETURN_IF_ERROR(err_code);
-
-    return NRF_SUCCESS;
-}
 
 ret_code_t htu21d_drv_convert_hum_hold()
 {
@@ -186,70 +216,9 @@ ret_code_t htu21d_drv_convert_hum_no_hold()
                 false);
 }
 
-ret_code_t htu21d_drv_set_resolution(htu21d_resolution_t res)
-{
-    ret_code_t err_code;
-    err_code = htu21d_drv_check_res_integrity(&res);
-    HTU21D_RETURN_IF_ERROR(err_code);
-
-    resolution = res;
-    return NRF_SUCCESS;
-}
 
 
-uint16_t htu21d_drv_get_temp_conversion_time()
-{
-    switch(resolution)
-    {
-        case HTU21D_RES_RH_12_TEMP_14:
-            return HTU21D_TEMP_14BIT_CONVERSION_TIME;
-            break;
-        case HTU21D_RES_RH_8_TEMP_12:
-            return HTU21D_TEMP_12BIT_CONVERSION_TIME;
-            break;
-        case HTU21D_RES_RH_10_TEMP_13:
-            return HTU21D_TEMP_13BIT_CONVERSION_TIME;
-            break;
-        case HTU21D_RES_RH_11_TEMP_11:
-            return HTU21D_TEMP_11BIT_CONVERSION_TIME;
-            break;
-    }
-    return HTU21D_TEMP_14BIT_CONVERSION_TIME;
-}
 
-uint16_t htu21d_drv_get_hum_conversion_time()
-{
-    switch(resolution)
-    {
-        case HTU21D_RES_RH_12_TEMP_14:
-            return HTU21D_RH_12BIT_CONVERSION_TIME;
-            break;
-        case HTU21D_RES_RH_8_TEMP_12:
-            return HTU21D_RH_8BIT_CONVERSION_TIME;
-            break;
-        case HTU21D_RES_RH_10_TEMP_13:
-            return HTU21D_RH_10BIT_CONVERSION_TIME;
-            break;
-        case HTU21D_RES_RH_11_TEMP_11:
-            return HTU21D_RH_11BIT_CONVERSION_TIME;
-            break;
-    }
-    return HTU21D_RH_12BIT_CONVERSION_TIME;
-}
-
-ret_code_t htu21d_get_last_conversion(uint16_t * buffer)
-{
-    ret_code_t err_code;
-    err_code = nrf_drv_twi_rx(p_twi,
-                    HTU21D_DEVICE_ADDR,
-                   (uint8_t *) buffer,
-                    sizeof(uint16_t));
-    HTU21D_RETURN_IF_ERROR(err_code);
-
-    *buffer = HTU21D_BYTES_REVERSE_16BIT(*buffer);
-    return NRF_SUCCESS;
-
-}
 
 int16_t htu21d_calculate_temperature(uint16_t buffer)
 {
