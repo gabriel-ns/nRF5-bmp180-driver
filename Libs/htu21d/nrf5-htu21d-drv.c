@@ -87,6 +87,27 @@ ret_code_t htu21d_drv_start_sensor(htu21d_t * htu, nrf_drv_twi_t * p_twi, htu21d
 
 ret_code_t htu21d_drv_convert_data(htu21d_t * htu)
 {
+    HTU21D_NULL_PARAM_CHECK(htu);
+    HTU21D_NULL_PARAM_CHECK(htu->p_twi);
+
+    if(htu->state == HTU21D_STATE_ERROR)
+    {
+        return NRF_ERROR_INTERNAL;
+    }
+
+    uint8_t cmd = HTU21D_REG_CONV_TEMP_NO_HOLD;
+    ret_code_t err_code;
+    htu->state = HTU21D_STATE_TEMP_CONV;
+
+    err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &cmd, sizeof(cmd), false);
+    HTU21D_RETURN_IF_ERROR(err_code);
+
+    uint16_t conversion_time = bmp180_drv_get_conv_time(htu->resolution);
+
+    //TODO app timer prescaler
+    err_code = app_timer_start(htu21d_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) htu );
+    HTU21D_RETURN_IF_ERROR(err_code);
+
     return NRF_SUCCESS;
 }
 
