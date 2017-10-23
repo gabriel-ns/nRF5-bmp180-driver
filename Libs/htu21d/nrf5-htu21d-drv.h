@@ -47,15 +47,12 @@ struct htu21d
         htu21d_evt_data_t last_evt;
 };
 
-
 ret_code_t htu21d_drv_begin(htu21d_event_cb_t (* htu21d_event_cb)(htu21d_evt_data_t * event_data));
 ret_code_t htu21d_drv_start_sensor(htu21d_t * htu, nrf_drv_twi_t * p_twi, htu21d_resolution_t resolution);
 ret_code_t htu21d_drv_convert_data(htu21d_t * htu);
 ret_code_t htu21d_drv_set_resolution(htu21d_t * htu, htu21d_resolution_t resolution);
 ret_code_t htu21d_drv_reset_sensor(htu21d_t * htu);
 ret_code_t htu21d_drv_get_sensor_id(htu21d_t * htu, uint8_t * id_buff);
-
-
 
 #if 0
 ret_code_t htu21d_drv_begin(nrf_drv_twi_t * p_ext_twi, htu21d_resolution_t res);
