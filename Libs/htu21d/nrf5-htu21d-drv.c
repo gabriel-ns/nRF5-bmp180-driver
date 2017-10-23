@@ -71,7 +71,18 @@ ret_code_t htu21d_drv_begin(htu21d_event_cb_t (* htu21d_event_cb)(htu21d_evt_dat
 
 ret_code_t htu21d_drv_start_sensor(htu21d_t * htu, nrf_drv_twi_t * p_twi, htu21d_resolution_t resolution)
 {
-    return NRF_SUCCESS;
+    HTU21D_NULL_PARAM_CHECK(htu);
+    HTU21D_NULL_PARAM_CHECK(p_twi);
+
+    htu->p_twi = p_twi;
+    htu->state = HTU21D_STATE_IDLE;
+    htu->last_evt.evt_type = HTU21D_NO_EVT;
+    htu->last_evt.htu21d = htu;
+
+    ret_code_t err_code;
+    err_code = htu21d_drv_set_resolution(htu, resolution);
+
+    return err_code;
 }
 
 ret_code_t htu21d_drv_convert_data(htu21d_t * htu)
