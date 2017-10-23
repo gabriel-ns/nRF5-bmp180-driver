@@ -101,6 +101,11 @@ ret_code_t bmp180_drv_convert_data(bmp180_t * bmp)
     BMP180_NULL_PARAM_CHECK(bmp);
     BMP180_NULL_PARAM_CHECK(bmp->p_twi);
 
+    if(bmp->state == BMP180_STATE_ERROR)
+    {
+        return NRF_ERROR_INTERNAL;
+    }
+
     static uint8_t tx_data[2] = {BMP180_REG_CTRL_MEAS, CONVERT_TEMPERATURE};
     ret_code_t err_code;
     bmp->state = BMP180_STATE_TEMP_CONV;
@@ -111,8 +116,8 @@ ret_code_t bmp180_drv_convert_data(bmp180_t * bmp)
     uint16_t conversion_time = bmp180_drv_get_conv_time(bmp->pwr_mode);
 
     //TODO app timer prescaler
-        err_code = app_timer_start(bmp180_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) bmp );
-        BMP180_RETURN_IF_ERROR(err_code);
+    err_code = app_timer_start(bmp180_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) bmp );
+    BMP180_RETURN_IF_ERROR(err_code);
 
     return NRF_SUCCESS;
 }
@@ -342,6 +347,7 @@ static void bmp180_error_call(bmp180_t * bmp, bmp180_evt_type_t evt_type, ret_co
 
     bmp->last_evt.err_code = err_code;
     bmp->last_evt.evt_type = evt_type;
+    bmp->state = BMP180_STATE_ERROR;
 
     if(p_bmp180_event_cb != NULL)
     {
