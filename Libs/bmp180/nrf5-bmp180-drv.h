@@ -20,6 +20,12 @@ typedef struct bmp180
         int16_t temperature;
 }bmp180_t;
 
+ret_code_t bmp180_drv_begin(bmp180_t * bmp, nrf_drv_twi_t * p_twi, bmp180_pwr_mode_t pwr_mode);
+ret_code_t bmp180_drv_convert_data(bmp180_t * bmp);
+ret_code_t bmp180_drv_set_pwr_mode(bmp180_t * bmp, bmp180_pwr_mode_t pwr_mode);
+ret_code_t bmp180_drv_reset(bmp180_t * bmp);
+ret_code_t bmp180_drv_get_id(bmp180_t * bmp, uint8_t * id_buff);
+
 #if(0)
 ret_code_t bmp180_drv_begin(nrf_drv_twi_t * p_ext_twi, bmp180_pwr_mode_t pwr_mode);
 
