@@ -54,6 +54,7 @@ typedef enum htu21d_reg_addr
 } htu21d_reg_addr_t;
 
 static void htu21d_timeout_cb(void * p_ctx);
+static uint16_t bmp180_drv_get_conv_time(htu21d_resolution_t resolution);
 
 static htu21d_event_cb_t(* p_htu21d_event_cb)(htu21d_evt_data_t * event_data) = NULL;
 
@@ -118,7 +119,15 @@ ret_code_t htu21d_drv_set_resolution(htu21d_t * htu, htu21d_resolution_t resolut
 
 ret_code_t htu21d_drv_reset_sensor(htu21d_t * htu)
 {
-    return NRF_SUCCESS;
+    HTU21D_NULL_PARAM_CHECK(htu);
+    HTU21D_NULL_PARAM_CHECK(htu->p_twi);
+
+    uint8_t cmd = HTU21D_REG_SOFT_RESET;
+
+    ret_code_t err_code;
+    err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &cmd, sizeof(cmd), false);
+
+    return err_code;
 }
 
 ret_code_t htu21d_drv_get_sensor_id(htu21d_t * htu, uint8_t * id_buff)
@@ -143,28 +152,6 @@ ret_code_t htu21d_drv_begin(nrf_drv_twi_t * p_ext_twi, htu21d_resolution_t res)
     HTU21D_RETURN_IF_ERROR(err_code);
 
     return NRF_SUCCESS;
-}
-
-ret_code_t htu21d_drv_convert_temp_hold()
-{
-    uint8_t cmd = HTU21D_REG_CONV_TEMP_HOLD;
-
-    return nrf_drv_twi_tx(p_twi,
-                HTU21D_DEVICE_ADDR,
-                &cmd,
-                sizeof(cmd),
-                true);
-}
-
-ret_code_t htu21d_drv_convert_temp_no_hold()
-{
-    uint8_t cmd = HTU21D_REG_CONV_TEMP_NO_HOLD;
-
-    return nrf_drv_twi_tx(p_twi,
-                HTU21D_DEVICE_ADDR,
-                &cmd,
-                sizeof(cmd),
-                false);
 }
 
 ret_code_t htu21d_drv_convert_hum_hold()
