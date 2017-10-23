@@ -74,9 +74,7 @@ static nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(0);
 
 static nrf_drv_rtc_t const m_rtc = NRF_DRV_RTC_INSTANCE(0);
 
-static int16_t temp = 0;
-
-static int32_t pres = 0;
+static bmp180_t sensor;
 
 #if defined( __GNUC__ ) && (__LINT__ == 0)
     // This is required if one wants to use floating-point values in 'printf'
@@ -111,26 +109,18 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
     {
         // On each RTC tick (their frequency is set in "nrf_drv_config.h")
         // we read data from our sensors.
-        bmp180_drv_convert_temp();
-        nrf_delay_ms(bmp180_drv_get_conv_time());
-        bmp180_drv_get_temp(&temp);
-
-        bmp180_drv_convert_pres();
-        nrf_delay_ms(bmp180_drv_get_conv_time());
-        bmp180_drv_get_pres(&pres);
-
-        NRF_LOG_INFO("Temperature = %d C  |  ", temp);
-        NRF_LOG_INFO("Pressure = %d Pa\r\n", pres);
+        bmp180_drv_convert_data(&sensor);
 
     }
 }
+
 static void rtc_config(void)
 {
     uint32_t err_code;
 
     // Initialize RTC instance with default configuration.
     nrf_drv_rtc_config_t config = NRF_DRV_RTC_DEFAULT_CONFIG;
-    config.prescaler = RTC_FREQ_TO_PRESCALER(1); //Set RTC frequency to 32Hz
+    config.prescaler = RTC_FREQ_TO_PRESCALER(0.25);
     err_code = nrf_drv_rtc_init(&m_rtc, &config, rtc_handler);
     APP_ERROR_CHECK(err_code);
 
@@ -152,6 +142,13 @@ static void lfclk_config(void)
     nrf_drv_clock_lfclk_request(NULL);
 }
 
+static void sensor_callback(bmp180_evt_data_t * event_data)
+{
+    if(event_data->evt_type == BMP180_EVT_DATA_READY)
+    {
+        NRF_LOG_INFO("T = %d | P = %d\n", event_data->bmp180->temperature, event_data->bmp180->pressure);
+    }
+}
 
 int main(void)
 {
@@ -162,6 +159,7 @@ int main(void)
     lfclk_config();
 
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
+    APP_TIMER_INIT(0, 10, NULL);
 
     NRF_LOG_INFO("TWI master example\r\n");
     NRF_LOG_FLUSH();
@@ -169,18 +167,8 @@ int main(void)
 
     rtc_config();
 
-    bmp180_drv_begin(&m_twi, BMP180_ULTRA_LOW_PWR);
-    bmp180_drv_convert_temp();
-    nrf_delay_ms(bmp180_drv_get_conv_time());
-    bmp180_drv_get_temp(&temp);
-
-    bmp180_drv_convert_pres();
-    nrf_delay_ms(bmp180_drv_get_conv_time());
-    bmp180_drv_get_pres(&pres);
-
-    NRF_LOG_INFO("Temperature = %d C", temp);
-    NRF_LOG_INFO("Pressure = %d Pa", pres);
-
+    bmp180_drv_begin(sensor_callback);
+    bmp180_drv_start_sensor(&sensor, &m_twi, 0);
 
     while (true)
     {
