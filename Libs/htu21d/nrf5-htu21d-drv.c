@@ -6,6 +6,7 @@
 #include "nrf_delay.h"
 #include "nrf_drv_twi.h"
 #include "nrf_log_ctrl.h"
+#include "app_timer.h"
 #include "nrf5-htu21d-drv.h"
 
 #define HTU21D_BYTES_REVERSE_32BIT(x) ((x << 24) | ((x << 8) & 0x00FF0000) | ((x >> 8) & 0x0000FF00) | (x >> 24))
@@ -39,6 +40,8 @@
 #define HTU21D_RH_10BIT_CONVERSION_TIME   6
 #define HTU21D_RH_8BIT_CONVERSION_TIME    5
 
+APP_TIMER_DEF(htu21d_internal_timer);
+
 typedef enum htu21d_reg_addr
 {
     HTU21D_REG_CONV_TEMP_HOLD = 0xE3,
@@ -50,6 +53,39 @@ typedef enum htu21d_reg_addr
     HTU21D_REG_SOFT_RESET = 0xFE
 } htu21d_reg_addr_t;
 
+static htu21d_event_cb_t(* p_htu21d_event_cb)(htu21d_evt_data_t * event_data) = NULL;
+
+ret_code_t htu21d_drv_begin(htu21d_event_cb_t (* htu21d_event_cb)(htu21d_evt_data_t * event_data))
+{
+    return NRF_SUCCESS;
+}
+
+ret_code_t htu21d_drv_start_sensor(htu21d_t * htu, nrf_drv_twi_t * p_twi, htu21d_resolution_t resolution)
+{
+    return NRF_SUCCESS;
+}
+
+ret_code_t htu21d_drv_convert_data(htu21d_t * htu)
+{
+    return NRF_SUCCESS;
+}
+
+ret_code_t htu21d_drv_set_resolution(htu21d_t * htu, htu21d_resolution_t resolution)
+{
+    return NRF_SUCCESS;
+}
+
+ret_code_t htu21d_drv_reset_sensor(htu21d_t * htu)
+{
+    return NRF_SUCCESS;
+}
+
+ret_code_t htu21d_drv_get_sensor_id(htu21d_t * htu, uint8_t * id_buff)
+{
+    return NRF_SUCCESS;
+}
+
+#if 0
 htu21d_resolution_t resolution = HTU21D_RES_RH_8_TEMP_12;
 nrf_drv_twi_t * p_twi = NULL;
 
@@ -226,3 +262,4 @@ static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * res)
 
 }
 
+#endif
