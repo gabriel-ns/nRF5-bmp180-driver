@@ -54,9 +54,12 @@ typedef enum htu21d_reg_addr
 } htu21d_reg_addr_t;
 
 static void htu21d_timeout_cb(void * p_ctx);
-static uint16_t bmp180_drv_get_temp_conv_time(htu21d_resolution_t resolution);
-static uint16_t bmp180_drv_get_hum_conv_time(htu21d_resolution_t resolution);
+static uint16_t htu21d_drv_get_temp_conv_time(htu21d_resolution_t resolution);
+static uint16_t htu21d_drv_get_hum_conv_time(htu21d_resolution_t resolution);
 static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * resolution);
+static int16_t htu21d_calculate_temperature(uint16_t buffer);
+static uint16_t htu21d_calculate_rh(uint16_t buffer);
+static void htu21d_error_call(htu21d_t * htu, htu21d_evt_type_t evt_type, ret_code_t err_code);
 
 static htu21d_event_cb_t(* p_htu21d_event_cb)(htu21d_evt_data_t * event_data) = NULL;
 
@@ -105,7 +108,7 @@ ret_code_t htu21d_drv_convert_data(htu21d_t * htu)
     err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &cmd, sizeof(cmd), false);
     HTU21D_RETURN_IF_ERROR(err_code);
 
-    uint16_t conversion_time = htu21d_drv_get_temp_conversion_time(htu->resolution);
+    uint16_t conversion_time = htu21d_drv_get_temp_conv_time(htu->resolution);
 
     //TODO app timer prescaler
     err_code = app_timer_start(htu21d_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) htu );
@@ -141,7 +144,7 @@ ret_code_t htu21d_drv_reset_sensor(htu21d_t * htu)
     return err_code;
 }
 
-static uint16_t htu21d_drv_get_temp_conversion_time(htu21d_resolution_t resolution)
+static uint16_t htu21d_drv_get_temp_conv_time(htu21d_resolution_t resolution)
 {
     switch(resolution)
     {
@@ -161,7 +164,7 @@ static uint16_t htu21d_drv_get_temp_conversion_time(htu21d_resolution_t resoluti
     return HTU21D_TEMP_14BIT_CONVERSION_TIME;
 }
 
-static uint16_t htu21d_drv_get_hum_conversion_time(htu21d_resolution_t resolution)
+static uint16_t htu21d_drv_get_hum_conv_time(htu21d_resolution_t resolution)
 {
     switch(resolution)
     {
@@ -181,12 +184,6 @@ static uint16_t htu21d_drv_get_hum_conversion_time(htu21d_resolution_t resolutio
     return HTU21D_RH_12BIT_CONVERSION_TIME;
 }
 
-static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * resolution)
-{
-
-}
-
-
 static void htu21d_timeout_cb(void * p_ctx)
 {
     if(p_ctx == NULL)
@@ -204,11 +201,11 @@ static void htu21d_timeout_cb(void * p_ctx)
        if(htu->state == HTU21D_STATE_TEMP_CONV)
        {
 
-           err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &data_reg_addr, sizeof(data_reg_addr), false);
-           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
+//           err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &data_reg_addr, sizeof(data_reg_addr), false);
+//           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
 
            /* Store the raw data in the temperature buffer */
-           err_code = nrf_drv_twi_rx(htu->p_twi, HTU21D_DEVICE_ADDR,  (uint8_t *) &buffer,2);
+           err_code = nrf_drv_twi_rx(htu->p_twi, HTU21D_DEVICE_ADDR,  (uint8_t *) &buffer, 2);
            if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
 
            buffer = HTU21D_BYTES_REVERSE_16BIT(buffer);
@@ -220,22 +217,22 @@ static void htu21d_timeout_cb(void * p_ctx)
            err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &convert_cmd, sizeof(convert_cmd), false);
            if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
 
-           uint16_t conversion_time = htu21d_drv_get_hum_conversion_time(htu->resolution);
+           uint16_t conversion_time = htu21d_drv_get_hum_conv_time(htu->resolution);
 
            //TODO app timer prescaler
-           err_code = app_timer_start(htu21d_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) bmp );
+           err_code = app_timer_start(htu21d_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) htu );
            if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_CRIT_ERROR, err_code);
 
        }
        else if(htu->state == HTU21D_STATE_HUM_CONV)
        {
-           err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &data_reg_addr, sizeof(data_reg_addr), false);
-           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
+//           err_code = nrf_drv_twi_tx(htu->p_twi, HTU21D_DEVICE_ADDR, &data_reg_addr, sizeof(data_reg_addr), false);
+//           if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
            err_code = nrf_drv_twi_rx(htu->p_twi, HTU21D_DEVICE_ADDR,  (uint8_t *) &buffer, 2);
            if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
 
            buffer = HTU21D_BYTES_REVERSE_16BIT(buffer);
-           err_code = htu21d_calculate_rh(buffer);
+           htu->humidity = htu21d_calculate_rh(buffer);
            if(err_code != NRF_SUCCESS) htu21d_error_call(htu, HTU21D_EVT_ERROR, err_code);
 
            htu->state = HTU21D_STATE_IDLE;
@@ -249,7 +246,7 @@ static void htu21d_timeout_cb(void * p_ctx)
        }
 }
 
-int16_t htu21d_calculate_temperature(uint16_t buffer)
+static int16_t htu21d_calculate_temperature(uint16_t buffer)
 {
     int32_t temp;
     temp = (17572*buffer)/65535;
@@ -257,7 +254,7 @@ int16_t htu21d_calculate_temperature(uint16_t buffer)
     return (int16_t) temp;
 }
 
-uint16_t htu21d_calculate_rh(uint16_t buffer)
+static uint16_t htu21d_calculate_rh(uint16_t buffer)
 {
     uint32_t rh;
     rh = (12500*buffer)/65535;
@@ -282,35 +279,16 @@ static ret_code_t htu21d_drv_check_res_integrity(htu21d_resolution_t * res)
 
 }
 
-#if 0
-
-ret_code_t htu21d_drv_convert_hum_hold()
+static void htu21d_error_call(htu21d_t * htu, htu21d_evt_type_t evt_type, ret_code_t err_code)
 {
-    uint8_t cmd = HTU21D_REG_CONV_HUM_HOLD;
+    if(htu == NULL) return;
 
-    return nrf_drv_twi_tx(p_twi,
-                HTU21D_DEVICE_ADDR,
-                &cmd,
-                sizeof(cmd),
-                true);
+    htu->last_evt.err_code = err_code;
+    htu->last_evt.evt_type = evt_type;
+    htu->state = HTU21D_STATE_ERROR;
+
+    if(p_htu21d_event_cb != NULL)
+    {
+        p_htu21d_event_cb(&htu->last_evt);
+    }
 }
-
-ret_code_t htu21d_drv_convert_hum_no_hold()
-{
-    uint8_t cmd = HTU21D_REG_CONV_TEMP_NO_HOLD;
-
-    return nrf_drv_twi_tx(p_twi,
-                HTU21D_DEVICE_ADDR,
-                &cmd,
-                sizeof(cmd),
-                false);
-}
-
-
-
-
-
-
-
-
-#endif

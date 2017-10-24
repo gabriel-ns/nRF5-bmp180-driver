@@ -105,11 +105,6 @@
 			<locationURI>virtual:/virtual</locationURI>
 		</link>
 		<link>
-			<name>nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/gpiote</name>
-			<type>2</type>
-			<locationURI>virtual:/virtual</locationURI>
-		</link>
-		<link>
 			<name>nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/hal</name>
 			<type>2</type>
 			<locationURI>virtual:/virtual</locationURI>
@@ -235,16 +230,6 @@
 			<location>D:/git/nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/delay/nrf_delay.h</location>
 		</link>
 		<link>
-			<name>nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/gpiote/nrf_drv_gpiote.c</name>
-			<type>1</type>
-			<locationURI>copy_PARENT1/nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/gpiote/nrf_drv_gpiote.c</locationURI>
-		</link>
-		<link>
-			<name>nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/gpiote/nrf_drv_gpiote.h</name>
-			<type>1</type>
-			<locationURI>copy_PARENT1/nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/gpiote/nrf_drv_gpiote.h</locationURI>
-		</link>
-		<link>
 			<name>nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/hal/nrf_adc.c</name>
 			<type>1</type>
 			<location>D:/git/nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/hal/nrf_adc.c</location>
@@ -283,11 +268,6 @@
 			<name>nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/hal/nrf_gpio.h</name>
 			<type>1</type>
 			<location>D:/git/nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/hal/nrf_gpio.h</location>
-		</link>
-		<link>
-			<name>nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/hal/nrf_gpiote.h</name>
-			<type>1</type>
-			<location>D:/git/nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/hal/nrf_gpiote.h</location>
 		</link>
 		<link>
 			<name>nRF5_SDK_12.3.0_d7731ad/components/drivers_nrf/hal/nrf_i2s.h</name>

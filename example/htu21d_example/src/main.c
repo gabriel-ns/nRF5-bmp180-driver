@@ -73,6 +73,8 @@ static nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(0);
 
 static nrf_drv_rtc_t const m_rtc = NRF_DRV_RTC_INSTANCE(0);
 
+static htu21d_t sensor;
+
 #if defined( __GNUC__ ) && (__LINT__ == 0)
     // This is required if one wants to use floating-point values in 'printf'
     // (by default this feature is not linked together with newlib-nano).
@@ -106,9 +108,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
     {
         // On each RTC tick (their frequency is set in "nrf_drv_config.h")
         // we read data from our sensors.
-
-        NRF_LOG_INFO("Temperature = \n ");
-
+        htu21d_drv_convert_data(&sensor);
     }
 }
 static void rtc_config(void)
@@ -117,7 +117,7 @@ static void rtc_config(void)
 
     // Initialize RTC instance with default configuration.
     nrf_drv_rtc_config_t config = NRF_DRV_RTC_DEFAULT_CONFIG;
-    config.prescaler = RTC_FREQ_TO_PRESCALER(64); //Set RTC frequency to 32Hz
+    config.prescaler = RTC_FREQ_TO_PRESCALER(1); //Set RTC frequency to 32Hz
     err_code = nrf_drv_rtc_init(&m_rtc, &config, rtc_handler);
     APP_ERROR_CHECK(err_code);
 
@@ -139,6 +139,14 @@ static void lfclk_config(void)
     nrf_drv_clock_lfclk_request(NULL);
 }
 
+static void sensor_callback(htu21d_evt_data_t * event_data)
+{
+    if(event_data->evt_type == HTU21D_EVT_DATA_READY)
+    {
+        NRF_LOG_INFO("T = %d | H = %d\n", event_data->htu21d->temperature, event_data->htu21d->humidity);
+    }
+}
+
 
 int main(void)
 {
@@ -150,31 +158,17 @@ int main(void)
     lfclk_config();
 
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
+    APP_TIMER_INIT(0, 10, NULL);
 
     NRF_LOG_INFO("TWI master example\r\n");
     NRF_LOG_FLUSH();
     twi_init();
 
-    htu21d_drv_begin(&m_twi, HTU21D_RES_RH_12_TEMP_14);
-    uint16_t buffer = 0;
+    htu21d_drv_begin(sensor_callback);
 
+    htu21d_drv_start_sensor(&sensor, &m_twi, HTU21D_RES_RH_12_TEMP_14);
 
-    err_code = htu21d_drv_convert_temp_no_hold();
-    nrf_delay_ms(htu21d_drv_get_temp_conversion_time());
-    err_code = htu21d_get_last_conversion(&buffer);
-    volatile int16_t temp;
-    temp = htu21d_calculate_temperature(buffer);
-
-    err_code = htu21d_drv_convert_hum_no_hold();
-    nrf_delay_ms(htu21d_drv_get_hum_conversion_time());
-    err_code = htu21d_get_last_conversion(&buffer);
-    volatile int16_t rh;
-    rh = htu21d_calculate_rh(buffer);
-
-    uint16_t test = rh + temp;
-
-    err_code++;
-    test++;
+    htu21d_drv_convert_data(&sensor);
 
     rtc_config();
 
