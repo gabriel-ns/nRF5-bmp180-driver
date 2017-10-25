@@ -164,7 +164,7 @@ int main(void)
     NRF_LOG_FLUSH();
     twi_init();
 
-    htu21d_drv_begin(sensor_callback);
+    htu21d_drv_begin((htu21d_event_cb_t) sensor_callback);
 
     htu21d_drv_start_sensor(&sensor, &m_twi, HTU21D_RES_RH_12_TEMP_14);
 

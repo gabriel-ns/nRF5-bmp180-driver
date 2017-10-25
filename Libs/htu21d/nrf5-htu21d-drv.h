@@ -53,20 +53,5 @@ ret_code_t htu21d_drv_convert_data(htu21d_t * htu);
 ret_code_t htu21d_drv_set_resolution(htu21d_t * htu, htu21d_resolution_t resolution);
 ret_code_t htu21d_drv_reset_sensor(htu21d_t * htu);
 
-#if 0
-ret_code_t htu21d_drv_begin(nrf_drv_twi_t * p_ext_twi, htu21d_resolution_t res);
-ret_code_t htu21d_drv_convert_temp_hold();
-ret_code_t htu21d_drv_convert_temp_no_hold();
-ret_code_t htu21d_drv_convert_hum_hold();
-ret_code_t htu21d_drv_convert_hum_no_hold();
-ret_code_t htu21d_drv_set_resolution(htu21d_resolution_t res);
-htu21d_resolution_t htu21d_drv_get_resolution();
-ret_code_t htu21d_drv_soft_reset();
-uint16_t htu21d_drv_get_temp_conversion_time();
-uint16_t htu21d_drv_get_hum_conversion_time();
-uint16_t htu21d_calculate_rh(uint16_t buffer);
-int16_t htu21d_calculate_temperature(uint16_t buffer);
-ret_code_t htu21d_get_last_conversion(uint16_t * buffer);
-#endif
 
 #endif // NRF5_HTU21D_LIB_H
