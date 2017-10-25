@@ -73,6 +73,8 @@ static nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(0);
 
 static nrf_drv_rtc_t const m_rtc = NRF_DRV_RTC_INSTANCE(0);
 
+static tsl2561_t sensor;
+
 #if defined( __GNUC__ ) && (__LINT__ == 0)
     // This is required if one wants to use floating-point values in 'printf'
     // (by default this feature is not linked together with newlib-nano).
@@ -106,6 +108,7 @@ static void rtc_handler(nrf_drv_rtc_int_type_t int_type)
     {
         // On each RTC tick (their frequency is set in "nrf_drv_config.h")
         // we read data from our sensors.
+        tsl2561_drv_convert_data(&sensor);
 
     }
 }
@@ -124,6 +127,14 @@ static void rtc_config(void)
 
     // Power on RTC instance.
     nrf_drv_rtc_enable(&m_rtc);
+}
+
+static void sensor_callback(tsl2561_evt_data_t * event_data)
+{
+    if(event_data->evt_type == TSL2561_EVT_DATA_READY)
+    {
+        NRF_LOG_INFO("L = %d | IR = %d\n", event_data->tsl->visible_lux, event_data->tsl->infrared_lux);
+    }
 }
 
 
@@ -146,31 +157,15 @@ int main(void)
     lfclk_config();
 
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
+    APP_TIMER_INIT(0, 10, NULL);
 
     NRF_LOG_INFO("TWI master example\r\n");
     NRF_LOG_FLUSH();
     twi_init();
 
-    tsl2561_drv_begin(&m_twi);
-
-    uint8_t id = 0;
-    tsl2561_drv_get_device_id(&id);
-
-    tsl2561_drv_set_power(TSL2561_POWER_UP);
-    nrf_delay_ms(tsl2561_get_read_time());
-
-    tsl2561_adc_data_t data;
-    tsl2561_drv_read_data(&data);
-
-    tsl2561_drv_set_power(TSL2561_POWER_DOWN);
-
-    uint32_t lux = 0;
-
-    lux = tsl2561_drv_calculate_lux(&data);
-
-    lux = lux + 1 - 1;
-
-    nrf_delay_ms(10);
+    tsl2561_drv_begin((tsl2561_event_cb_t) sensor_callback);
+    tsl2561_drv_start_sensor(&sensor, &m_twi, TSL2561_INTEGRATION_TIME_101MS, TSL2561_GAIN_16X);
+    tsl2561_drv_convert_data(&sensor);
 
     rtc_config();
 

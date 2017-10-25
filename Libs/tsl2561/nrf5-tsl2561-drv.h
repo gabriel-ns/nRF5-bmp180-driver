@@ -1,6 +1,30 @@
 #ifndef NRF5_TSL2561_LIB_H
 #define NRF5_TSL2561_LIB_H
 
+typedef enum tsl2561_state
+{
+    TSL2561_STATE_IDLE,
+    TSL2561_STATE_CONV,
+    TSL2561_STATE_ERROR
+}tsl2561_state_t;
+
+typedef enum tsl2561_evt_type
+{
+    TSL2561_NO_EVT,
+    TSL2561_EVT_DATA_READY,
+    TSL2561_EVT_ERROR,
+    TSL2561_EVT_CRIT_ERROR
+}tsl2561_evt_type_t;
+
+typedef struct tsl2561 tsl2561_t;
+
+typedef struct tsl2561_evt_data
+{
+        tsl2561_evt_type_t evt_type;
+        tsl2561_t * tsl;
+        ret_code_t err_code;
+}tsl2561_evt_data_t;
+
 typedef enum tsl2561_integration_time
 {
     TSL2561_INTEGRATION_TIME_13_7MS = 0x00,
@@ -20,27 +44,25 @@ typedef enum tsl2561_power
     TSL2561_POWER_DOWN = 0x00
 }tsl2561_power_t;
 
-typedef struct tsl2561_config
+struct tsl2561
 {
-        tsl2561_power_t power;
-        tsl2561_integration_time_t integration_time;
+        nrf_drv_twi_t * p_twi;
         tsl2561_gain_t gain;
-}tsl2561_config_t;
+        tsl2561_integration_time_t int_time;
+        tsl2561_power_t pwr;
+        tsl2561_state_t state;
+        uint32_t visible_lux;
+        uint32_t infrared_lux;
+        tsl2561_evt_data_t last_evt;
+};
 
-typedef struct tsl2561_adc_data
-{
-        uint16_t data0;
-        uint16_t data1;
-}tsl2561_adc_data_t;
+typedef void (*tsl2561_event_cb_t)(tsl2561_evt_data_t * event_data);
 
-ret_code_t tsl2561_drv_begin(nrf_drv_twi_t * p_ext_twi);
-ret_code_t tsl2561_drv_set_power(tsl2561_power_t pwr);
-ret_code_t tsl2561_drv_set_gain(tsl2561_gain_t gain);
-ret_code_t tsl2561_drv_set_integration_time(tsl2561_integration_time_t time);
-ret_code_t tsl2561_drv_get_device_id(uint8_t * id);
-ret_code_t tsl2561_drv_read_data(tsl2561_adc_data_t * data);
-uint32_t tsl2561_drv_calculate_lux(tsl2561_adc_data_t * data);
-uint16_t tsl2561_get_read_time();
-
+ret_code_t tsl2561_drv_begin(tsl2561_event_cb_t (* tsl2561_event_cb)(tsl2561_evt_data_t * event_data));
+ret_code_t tsl2561_drv_start_sensor(tsl2561_t * tsl, nrf_drv_twi_t * p_twi,tsl2561_integration_time_t int_time, tsl2561_gain_t gain);
+ret_code_t tsl2561_drv_convert_data(tsl2561_t * tsl);
+ret_code_t tsl2561_drv_set_integration_time(tsl2561_t * tsl, tsl2561_integration_time_t int_time);
+ret_code_t tsl2561_drv_set_gain(tsl2561_t * tsl, tsl2561_gain_t gain);
+ret_code_t tsl2561_drv_get_device_id(tsl2561_t * tsl, uint8_t * id);
 
 #endif // NRF5_TSL2561_LIB_H

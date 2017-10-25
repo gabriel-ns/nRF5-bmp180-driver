@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "nrf_error.h"
+#include "app_timer.h"
 #include "nrf_drv_twi.h"
 #include "nrf5-tsl2561-drv.h"
 
@@ -163,6 +164,8 @@
 #define TSL2561_B8C           (0x0000)  // 0.000 * 2^LUX_SCALE
 #define TSL2561_M8C           (0x0000)  // 0.000 * 2^LUX_SCALE
 
+APP_TIMER_DEF(tsl2561_internal_timer);
+
 typedef enum tsl2561_reg_addr
 {
     TSL2561_REG_ADDR_CONTROL    = 0x00,
@@ -180,87 +183,160 @@ typedef enum tsl2561_reg_addr
     TSL2561_REG_ADDR_DATA1H     = 0x0F
 } tsl2561_reg_addr_t;
 
-nrf_drv_twi_t * p_twi = NULL;
-
-/** Default config */
-tsl2561_config_t config = {
-        .integration_time = TSL2561_INTEGRATION_TIME_13_7MS,
-        .gain = TSL2561_GAIN_0,
-        .power = TSL2561_POWER_DOWN
-};
-
-ret_code_t tsl2561_drv_begin(nrf_drv_twi_t * p_ext_twi)
+typedef struct tsl2561_adc_data
 {
-    TSL2561_NULL_PARAM_CHECK(p_ext_twi);
-    p_twi = p_ext_twi;
+        uint16_t data0;
+        uint16_t data1;
+}tsl2561_adc_data_t;
 
-    tsl2561_drv_set_gain(config.gain);
-    tsl2561_drv_set_integration_time(config.integration_time);
+static void tsl2561_timeout_cb(void * p_ctx);
+static uint16_t tsl2561_drv_get_conv_time(tsl2561_integration_time_t int_time);
+static ret_code_t tsl2561_drv_check_res_integrity(tsl2561_integration_time_t * int_time);
+static ret_code_t tsl2561_calculate_lux(tsl2561_t * tsl, tsl2561_adc_data_t data);
+static void tsl2561_error_call(tsl2561_t * tsl, tsl2561_evt_type_t evt_type, ret_code_t err_code);
+static ret_code_t tsl2561_drv_set_power(tsl2561_t * tsl, tsl2561_power_t pwr);
+
+static tsl2561_event_cb_t(* p_tsl2561_event_cb)(tsl2561_evt_data_t * event_data) = NULL;
+
+ret_code_t tsl2561_drv_begin(tsl2561_event_cb_t (* tsl2561_event_cb)(tsl2561_evt_data_t * event_data))
+{
+    if(tsl2561_event_cb != NULL)
+    {
+        p_tsl2561_event_cb = tsl2561_event_cb;
+    }
+
+    ret_code_t err_code;
+    err_code = app_timer_create(&tsl2561_internal_timer, APP_TIMER_MODE_SINGLE_SHOT, tsl2561_timeout_cb);
+    return err_code;
+}
+
+ret_code_t tsl2561_drv_start_sensor(tsl2561_t * tsl,
+        nrf_drv_twi_t * p_twi,
+        tsl2561_integration_time_t int_time,
+        tsl2561_gain_t gain)
+{
+    TSL2561_NULL_PARAM_CHECK(tsl);
+    TSL2561_NULL_PARAM_CHECK(p_twi);
+
+    tsl->p_twi = p_twi;
+    tsl->state = TSL2561_STATE_IDLE;
+    tsl->last_evt.evt_type = TSL2561_NO_EVT;
+    tsl->last_evt.tsl = tsl;
+
+    ret_code_t err_code;
+    err_code = tsl2561_drv_set_integration_time(tsl, int_time);
+    TSL2561_RETURN_IF_ERROR(err_code);
+
+    err_code = tsl2561_drv_set_gain(tsl, gain);
+
+    return err_code;
+}
+
+ret_code_t tsl2561_drv_convert_data(tsl2561_t * tsl)
+{
+    TSL2561_NULL_PARAM_CHECK(tsl);
+    TSL2561_NULL_PARAM_CHECK(tsl->p_twi);
+
+    if(tsl->state == TSL2561_STATE_ERROR)
+    {
+        return NRF_ERROR_INTERNAL;
+    }
+
+    ret_code_t err_code;
+    err_code = tsl2561_drv_set_power(tsl, TSL2561_POWER_UP);
+    TSL2561_RETURN_IF_ERROR(err_code);
+
+    tsl->state = TSL2561_STATE_CONV;
+
+    uint16_t conversion_time = tsl2561_drv_get_conv_time(tsl->int_time);
+
+    //TODO app timer prescaler
+    err_code = app_timer_start(tsl2561_internal_timer, APP_TIMER_TICKS(conversion_time, 0) , (void *) tsl );
+    TSL2561_RETURN_IF_ERROR(err_code);
 
     return NRF_SUCCESS;
 }
 
-ret_code_t tsl2561_drv_set_power(tsl2561_power_t pwr)
+ret_code_t tsl2561_drv_set_integration_time(tsl2561_t * tsl, tsl2561_integration_time_t int_time)
 {
-    config.power = pwr;
+    TSL2561_NULL_PARAM_CHECK(tsl);
+    TSL2561_NULL_PARAM_CHECK(tsl->p_twi);
 
-    uint8_t cmd[2];
-    cmd[0] = TSL2561_CMD_TEMPLATE | TSL2561_REG_ADDR_CONTROL;
-    cmd[1] = config.power;
-    return nrf_drv_twi_tx(p_twi, TSL2561_DEVICE_ADDR, cmd, 2, false);
+    static uint8_t cmd[2];
+    cmd[0] = TSL2561_CMD_TEMPLATE | TSL2561_REG_ADDR_TIMING;
+    cmd[1] = 0x00 | (tsl->gain << 4) | int_time;
+
+    ret_code_t err_code;
+    err_code = nrf_drv_twi_tx(tsl->p_twi, TSL2561_DEVICE_ADDR, cmd, 2, false);
+    TSL2561_RETURN_IF_ERROR(err_code);
+
+    tsl->int_time = int_time;
+
+    return NRF_SUCCESS;
 }
 
-ret_code_t tsl2561_drv_set_gain(tsl2561_gain_t gain)
+ret_code_t tsl2561_drv_set_gain(tsl2561_t * tsl, tsl2561_gain_t gain)
 {
-    config.gain = gain;
+    TSL2561_NULL_PARAM_CHECK(tsl);
+    TSL2561_NULL_PARAM_CHECK(tsl->p_twi);
 
     uint8_t cmd[2];
     cmd[0] = TSL2561_CMD_TEMPLATE | TSL2561_REG_ADDR_TIMING;
-    cmd[1] = 0x00 | (config.gain << 4) | config.integration_time;
-    return nrf_drv_twi_tx(p_twi, TSL2561_DEVICE_ADDR, cmd, 2, false);
+    cmd[1] = 0x00 | (gain << 4) | tsl->int_time;
+
+    ret_code_t err_code;
+    err_code = nrf_drv_twi_tx(tsl->p_twi, TSL2561_DEVICE_ADDR, cmd, 2, false);
+    TSL2561_RETURN_IF_ERROR(err_code);
+
+    tsl->gain = gain;
+
+    return NRF_SUCCESS;
 }
 
-ret_code_t tsl2561_drv_set_integration_time(tsl2561_integration_time_t time)
+ret_code_t tsl2561_drv_get_device_id(tsl2561_t * tsl, uint8_t * id)
 {
-    config.integration_time = time;
+    TSL2561_NULL_PARAM_CHECK(tsl);
+    TSL2561_NULL_PARAM_CHECK(tsl->p_twi);
 
-    uint8_t cmd[2];
-    cmd[0] = TSL2561_CMD_TEMPLATE | TSL2561_REG_ADDR_TIMING;
-    cmd[1] = 0x00 | (config.gain << 4) | config.integration_time;
-    return nrf_drv_twi_tx(p_twi, TSL2561_DEVICE_ADDR, cmd, 2, false);
-}
-
-ret_code_t tsl2561_drv_get_device_id(uint8_t * id)
-{
     uint8_t cmd;
     ret_code_t err_code;
 
     cmd = TSL2561_CMD_TEMPLATE | TSL2561_REG_ADDR_ID;
-    err_code = nrf_drv_twi_tx(p_twi, TSL2561_DEVICE_ADDR, &cmd, 1, true);
+
+    err_code = nrf_drv_twi_tx(tsl->p_twi, TSL2561_DEVICE_ADDR, &cmd, 1, true);
     TSL2561_RETURN_IF_ERROR(err_code);
-    return nrf_drv_twi_rx(p_twi, TSL2561_DEVICE_ADDR, id, 1);
+
+    return nrf_drv_twi_rx(tsl->p_twi, TSL2561_DEVICE_ADDR, id, 1);
 }
 
-ret_code_t tsl2561_drv_read_data(tsl2561_adc_data_t * data)
+static uint16_t tsl2561_drv_get_conv_time(tsl2561_integration_time_t int_time)
 {
-    uint8_t cmd;
-    ret_code_t err_code;
-
-    cmd = TSL2561_CMD_TEMPLATE | TSL2561_REG_ADDR_DATA0L;
-    err_code = nrf_drv_twi_tx(p_twi, TSL2561_DEVICE_ADDR, &cmd, 1, true);
-    TSL2561_RETURN_IF_ERROR(err_code);
-    return nrf_drv_twi_rx(p_twi, TSL2561_DEVICE_ADDR, (uint8_t *) data, 4);
+    switch(int_time)
+    {
+        case TSL2561_INTEGRATION_TIME_13_7MS:
+            return 15;
+            break;
+        case TSL2561_INTEGRATION_TIME_101MS:
+            return 105;
+            break;
+        case TSL2561_INTEGRATION_TIME_402MS:
+            return 405;
+            break;
+    }
+    return 405;
 }
 
-uint32_t tsl2561_drv_calculate_lux(tsl2561_adc_data_t * data)
+static ret_code_t tsl2561_calculate_lux(tsl2561_t * tsl, tsl2561_adc_data_t data)
 {
-    uint32_t ch0buff = data->data0;
-    uint32_t ch1buff = data->data1;
+    TSL2561_NULL_PARAM_CHECK(tsl);
+
+    uint32_t ch0buff = data.data0;
+    uint32_t ch1buff = data.data1;
 
     uint32_t ch_scale;
 
-    /** If the integration time is NOT 402ms it is scaled */
-    switch(config.integration_time)
+    /* If the integration time is NOT 402ms it is scaled */
+    switch(tsl->int_time)
     {
         case TSL2561_INTEGRATION_TIME_13_7MS:
             ch_scale = TSL2561_CH_SCALE_TINT0;
@@ -274,14 +350,14 @@ uint32_t tsl2561_drv_calculate_lux(tsl2561_adc_data_t * data)
     }
 
 
-    /** Scale if the gain is not 16x */
-    if(!config.gain)
+    /* Scale if the gain is not 16x */
+    if(!tsl->gain)
     {
         ch_scale = ch_scale << 4; // Scale 1x to 16x
     }
 
-    ch0buff = (data->data0 * ch_scale) >> TSL2561_CH_SCALE;
-    ch1buff = (data->data1 * ch_scale) >> TSL2561_CH_SCALE;
+    ch0buff = (data.data0 * ch_scale) >> TSL2561_CH_SCALE;
+    ch1buff = (data.data1 * ch_scale) >> TSL2561_CH_SCALE;
 
     /** find the ratio between channels (ch1 / ch0) */
     uint32_t ratio = 0;
@@ -339,29 +415,88 @@ uint32_t tsl2561_drv_calculate_lux(tsl2561_adc_data_t * data)
         m = TSL2561_M8T;
     }
 
-    uint32_t lux;
-    lux = ((ch0buff * b) - (ch1buff * m));
+    uint32_t vis_lux;
+    uint32_t ir_lux;
+    ir_lux = (ch1buff * m);
+    vis_lux = ((ch0buff * b) - ir_lux);
 
-    lux += (1 << (TSL2561_LUX_SCALE - 1));
+    vis_lux += (1 << (TSL2561_LUX_SCALE - 1));
+    ir_lux += (1 << (TSL2561_LUX_SCALE - 1));
 
-    lux = lux >> TSL2561_LUX_SCALE;
+    vis_lux = vis_lux >> TSL2561_LUX_SCALE;
+    ir_lux = ir_lux >> TSL2561_LUX_SCALE;
 
-    return lux;
+    tsl->infrared_lux = ir_lux;
+    tsl->visible_lux = vis_lux;
+
+    return NRF_SUCCESS;
 }
 
-uint16_t tsl2561_get_read_time()
+static ret_code_t tsl2561_drv_set_power(tsl2561_t * tsl, tsl2561_power_t pwr)
 {
-    switch(config.integration_time)
+
+    TSL2561_NULL_PARAM_CHECK(tsl);
+    TSL2561_NULL_PARAM_CHECK(tsl->p_twi);
+
+    uint8_t cmd[2];
+    cmd[0] = TSL2561_CMD_TEMPLATE | TSL2561_REG_ADDR_CONTROL;
+    cmd[1] = pwr;
+
+    ret_code_t err_code;
+    err_code = nrf_drv_twi_tx(tsl->p_twi, TSL2561_DEVICE_ADDR, cmd, 2, false);
+    TSL2561_RETURN_IF_ERROR(err_code);
+
+    tsl->pwr = pwr;
+
+    return NRF_SUCCESS;
+}
+
+static void tsl2561_timeout_cb(void * p_ctx)
+{
+    if(p_ctx == NULL)
     {
-        case TSL2561_INTEGRATION_TIME_13_7MS:
-            return 15;
-            break;
-        case TSL2561_INTEGRATION_TIME_101MS:
-            return 105;
-            break;
-        case TSL2561_INTEGRATION_TIME_402MS:
-            return 405;
-            break;
+        return;
     }
-    return 405;
+
+    tsl2561_t * tsl = (tsl2561_t * ) p_ctx;
+    if(tsl->state == TSL2561_STATE_CONV)
+    {
+        uint8_t cmd;
+        ret_code_t err_code;
+
+        cmd = TSL2561_CMD_TEMPLATE | TSL2561_REG_ADDR_DATA0L;
+        err_code = nrf_drv_twi_tx(tsl->p_twi, TSL2561_DEVICE_ADDR, &cmd, 1, true);
+        if(err_code != NRF_SUCCESS) tsl2561_error_call(tsl, TSL2561_EVT_ERROR, err_code);
+
+        tsl2561_adc_data_t data = {0,0};
+        err_code = nrf_drv_twi_rx(tsl->p_twi, TSL2561_DEVICE_ADDR, (uint8_t *) &data, 4);
+
+        if(err_code != NRF_SUCCESS) tsl2561_error_call(tsl, TSL2561_EVT_ERROR, err_code);
+
+        tsl2561_calculate_lux(tsl, data);
+
+        tsl->state = TSL2561_STATE_IDLE;
+
+        tsl->last_evt.evt_type = TSL2561_EVT_DATA_READY;
+        tsl->last_evt.err_code = NRF_SUCCESS;
+
+        if(p_tsl2561_event_cb != NULL)
+        {
+            p_tsl2561_event_cb(&tsl->last_evt);
+        }
+    }
+}
+
+static void tsl2561_error_call(tsl2561_t * tsl, tsl2561_evt_type_t evt_type, ret_code_t err_code)
+{
+    if(tsl == NULL) return;
+
+    tsl->last_evt.err_code = err_code;
+    tsl->last_evt.evt_type = evt_type;
+    tsl->state = TSL2561_STATE_ERROR;
+
+    if(p_tsl2561_event_cb != NULL)
+    {
+        p_tsl2561_event_cb(&tsl->last_evt);
+    }
 }
